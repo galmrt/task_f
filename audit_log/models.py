@@ -9,7 +9,6 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field
 
-from audit_log.exceptions import UnknownEventTypeError
 
 _config_path = Path(__file__).parent.parent / "config" / "event_types.json"
 _config_data = json.loads(_config_path.read_text())

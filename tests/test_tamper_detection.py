@@ -63,7 +63,7 @@ def test_tamper_at_record_500():
     # Force fresh connections so the engine doesn't see a stale cache
     log._engine.dispose()
 
-    result = log.verify(receipts[500].record_id)
+    result = log.verify(receipts[0].record_id)
     assert not result.valid
     assert result.tampered_at_sequence == 500
 
@@ -77,7 +77,6 @@ def test_tamper_at_record_0():
 
     result = log.verify(receipts[0].record_id)
     assert not result.valid
-    # Tamper at record 0 breaks the chain starting at sequence 0
     assert result.tampered_at_sequence == 0
 
 
@@ -88,7 +87,7 @@ def test_tamper_at_record_1():
     _tamper_primary(db_path, 1, "originating_component_id", "evil-writer")
     log._engine.dispose()
 
-    result = log.verify(receipts[1].record_id)
+    result = log.verify(receipts[0].record_id)
     assert not result.valid
     assert result.tampered_at_sequence == 1
 
@@ -101,7 +100,7 @@ def test_tamper_last_but_one_record():
     _tamper_primary(db_path, n - 2, "payload_hash", "c" * 64)
     log._engine.dispose()
 
-    result = log.verify(receipts[n - 2].record_id)
+    result = log.verify(receipts[0].record_id)
     assert not result.valid
     assert result.tampered_at_sequence == n - 2
 
@@ -128,7 +127,7 @@ def test_lineage_tamper_detected_when_primary_intact():
     _tamper_lineage(db_path, 10, "lineage_hash", "d" * 64)
     log._engine.dispose()
 
-    result = log.verify(receipts[10].record_id)
+    result = log.verify(receipts[0].record_id)
     assert not result.valid
     assert result.tampered_at_sequence == 10
 
@@ -140,7 +139,7 @@ def test_lineage_parent_hash_tamper_detected():
     _tamper_lineage(db_path, 5, "parent_lineage_hash", "e" * 64)
     log._engine.dispose()
 
-    result = log.verify(receipts[5].record_id)
+    result = log.verify(receipts[0].record_id)
     assert not result.valid
 
 
@@ -152,10 +151,9 @@ def test_reconciliation_failure_primary_ok_lineage_bad():
     log, db_path = _make_log_with_db()
     receipts = [log.anchor(_record(i)) for i in range(15)]
 
-    # Corrupt only the lineage table
     _tamper_lineage(db_path, 7, "payload_hash", "f" * 64)
     log._engine.dispose()
 
-    result = log.verify(receipts[7].record_id)
+    result = log.verify(receipts[0].record_id)
     assert not result.valid
     assert "lineage" in (result.failure_reason or "").lower()

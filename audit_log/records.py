@@ -126,15 +126,6 @@ class AuditRecordStore:
             ).fetchone()
         return _row_to_stored(row) if row else None
 
-    def get_by_sequence(self, sequence: int) -> StoredRecord | None:
-        with self._engine.connect() as conn:
-            row = conn.execute(
-                sa.select(_audit_records).where(
-                    _audit_records.c.sequence == sequence
-                )
-            ).fetchone()
-        return _row_to_stored(row) if row else None
-
     def get_all_ordered(self) -> list[StoredRecord]:
         with self._engine.connect() as conn:
             rows = conn.execute(
@@ -213,15 +204,6 @@ class LineageRecordStore:
             ).fetchall()
         return [_row_to_lineage(r) for r in rows]
 
-    def get_by_sequence(self, sequence: int) -> LineageReceipt | None:
-        with self._engine.connect() as conn:
-            row = conn.execute(
-                sa.select(_lineage_records).where(
-                    _lineage_records.c.sequence == sequence
-                )
-            ).fetchone()
-        return _row_to_lineage(row) if row else None
-
     def count(self) -> int:
         with self._engine.connect() as conn:
             return conn.execute(
@@ -243,21 +225,6 @@ class MMRNodeStore:
             return
         with self._engine.begin() as conn:
             conn.execute(_mmr_nodes.insert(), nodes)
-
-    def get_by_idx(self, node_idx: int) -> dict | None:
-        with self._engine.connect() as conn:
-            row = conn.execute(
-                sa.select(_mmr_nodes).where(_mmr_nodes.c.node_idx == node_idx)
-            ).fetchone()
-        if row is None:
-            return None
-        return {
-            "node_idx": row.node_idx,
-            "hash": row.hash,
-            "height": row.height,
-            "left_idx": row.left_idx,
-            "right_idx": row.right_idx,
-        }
 
     def get_all(self) -> list[dict]:
         with self._engine.connect() as conn:
@@ -307,17 +274,6 @@ class MMRCheckpointStore:
                 sa.select(_mmr_checkpoints)
                 .order_by(_mmr_checkpoints.c.sequence.desc())
                 .limit(1)
-            ).fetchone()
-        if row is None:
-            return None
-        return row.sequence, row.root_hash, json.loads(row.peaks_json)
-
-    def get_by_sequence(self, sequence: int) -> tuple[int, str, list[int]] | None:
-        with self._engine.connect() as conn:
-            row = conn.execute(
-                sa.select(_mmr_checkpoints).where(
-                    _mmr_checkpoints.c.sequence == sequence
-                )
             ).fetchone()
         if row is None:
             return None

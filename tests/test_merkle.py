@@ -1,22 +1,5 @@
 import pytest
-from audit_log.merkle import MMR, Proof, find_tamper, hash_leaf, hash_nodes, bag_peaks
-
-
-def verify_proof(leaf_hash: str, proof: Proof, root: str) -> bool:
-    """Recompute the root from leaf + proof and check it matches the expected root."""
-    current = leaf_hash
-    for sibling_hash, side in proof.siblings:
-        if side == "right":
-            current = hash_nodes(current, sibling_hash)
-        else:
-            current = hash_nodes(sibling_hash, current)
-    # current is now the recomputed peak hash; insert it at peak_list_idx and bag
-    all_peaks = (
-        proof.other_peaks[: proof.peak_list_idx]
-        + [current]
-        + proof.other_peaks[proof.peak_list_idx :]
-    )
-    return bag_peaks(all_peaks) == root
+from audit_log.merkle import MMR, find_tamper, hash_leaf, verify_proof
 
 
 def make_mmr(n: int) -> MMR:
