@@ -115,6 +115,37 @@ def test_no_tamper_returns_valid():
     assert result.tampered_at_sequence is None
 
 
+def test_verify_unknown_record_id_returns_invalid():
+    """Empty log — verifying a non-existent record_id returns invalid."""
+    from uuid import uuid4
+    log = AuditLog()
+    result = log.verify(uuid4())
+    assert not result.valid
+    assert result.record_count == 0
+
+
+def test_single_record_no_tamper():
+    log, db_path = _make_log_with_db()
+    receipt = log.anchor(_record(0))
+    log._engine.dispose()
+
+    result = log.verify(receipt.record_id)
+    assert result.valid
+    assert result.tampered_at_sequence is None
+
+
+def test_single_record_tampered():
+    log, db_path = _make_log_with_db()
+    receipt = log.anchor(_record(0))
+
+    _tamper_primary(db_path, 0, "payload_hash", "a" * 64)
+    log._engine.dispose()
+
+    result = log.verify(receipt.record_id)
+    assert not result.valid
+    assert result.tampered_at_sequence == 0
+
+
 # -----------------------------------------------------------------------
 # Lineage chain tamper tests
 # -----------------------------------------------------------------------
