@@ -107,13 +107,6 @@ class AuditRecordStore:
             ).fetchone()
         return _row_to_stored(row) if row else None
 
-    def get_all_ordered(self) -> list[StoredRecord]:
-        with self._engine.connect() as conn:
-            rows = conn.execute(
-                sa.select(_audit_records).order_by(_audit_records.c.sequence)
-            ).fetchall()
-        return [_row_to_stored(r) for r in rows]
-
     def get_by_time_window(self, start: datetime, end: datetime) -> list[StoredRecord]:
         with self._engine.connect() as conn:
             rows = conn.execute(
@@ -177,13 +170,6 @@ class LineageRecordStore:
                 )
             ).fetchone()
         return _row_to_lineage(row) if row else None
-
-    def get_all_ordered(self) -> list[LineageReceipt]:
-        with self._engine.connect() as conn:
-            rows = conn.execute(
-                sa.select(_lineage_records).order_by(_lineage_records.c.sequence)
-            ).fetchall()
-        return [_row_to_lineage(r) for r in rows]
 
     def count(self) -> int:
         with self._engine.connect() as conn:
