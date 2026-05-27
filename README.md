@@ -1,6 +1,6 @@
 # Task F — Dual-Anchored Append-Only Audit Log
 
-A tamper-evident, append-only audit log where every record is anchored to two independent hash chains. Both chains must reconcile for any record to verify. Tampering with a single record is detected in O(log n) time using a Merkle Mountain Range (MMR) proof.
+A tamper-evident, append-only audit log where every record is anchored to two independent Merkle Mountain Range (MMR) trees. Both trees must reconcile for any record to verify. Tampering with a single record is detected in O(log n) time.
 
 ## Installation
 
@@ -12,7 +12,7 @@ pip install -e "task_f/[dev]"
 ## Running Tests
 
 ```bash
-pytest task_f/tests/                                        # all 55 tests
+pytest task_f/tests/                                        # all 52 tests
 pytest task_f/tests/test_tamper_detection.py               # tamper suite only
 pytest task_f/tests/test_tamper_detection.py::test_tamper_at_record_500
 mypy task_f/audit_log/                                      # type check
@@ -32,7 +32,7 @@ log = AuditLog(db_url="sqlite:///audit.db")  # file-backed
 
 ### `anchor(record) -> AnchorReceipt`
 
-Appends a record to both chains atomically. Assigns a UUID, sequence number, writer signature, and parent hash. Extends the MMR and persists all new nodes in the same operation.
+Appends a record to both chains atomically. Assigns a UUID, sequence number, writer signature, and parent hash. Extends both in-memory MMRs.
 
 ```python
 receipt = log.anchor(AuditRecord(
@@ -45,19 +45,19 @@ receipt = log.anchor(AuditRecord(
 
 ### `verify(record_id) -> VerificationResult`
 
-Verifies one specific record in **O(log n)** using its MMR Merkle proof. Reads only the target record and its O(log n) proof siblings — no other records are touched. Also performs an O(1) internal-consistency check on the lineage entry.
+Verifies one specific record in **O(log n)** using Merkle proofs from both MMRs. Reads only the target record and its O(log n) proof siblings — no other records are touched.
 
 ```python
 result = log.verify(receipt.record_id)
 result.valid                   # bool
 result.tampered_at_sequence    # int | None — sequence of the tampered record
 result.failure_reason          # str | None
-result.merkle_root             # str | None — hex-encoded MMR root on success
+result.merkle_root             # str | None — hex-encoded primary MMR root on success
 ```
 
 ### `rebuild_merkle_root(time_window) -> bytes`
 
-Recomputes the MMR root for all records whose timestamp falls within the given window. Useful for auditing a time-bounded slice of the log independently.
+Recomputes the primary MMR root for all records whose timestamp falls within the given window. Useful for auditing a time-bounded slice of the log independently.
 
 ```python
 from datetime import datetime, timezone
@@ -83,8 +83,8 @@ Five modules with a strict one-way import hierarchy:
 ```
 exceptions.py   — AppendOnlyViolationError only, no internal imports
 models.py       — Pydantic models + DynamicEventType (loaded from config/)
-merkle.py       — MMR, Proof, find_tamper, verify_proof; no internal imports
-records.py      — Four append-only SQLAlchemy store classes
+merkle.py       — MMR, Proof, verify_proof; no internal imports
+records.py      — Two append-only SQLAlchemy store classes
 log.py          — AuditLog: orchestrates records + merkle, sole public interface
 ```
 
@@ -102,7 +102,7 @@ A separate chain with a different formula:
 lineage_hash = SHA-256(record_id || payload_hash || parent_lineage_hash)
 ```
 
-`verify()` checks both. Primary passing while lineage fails (or vice versa) is a failed verification.
+These `lineage_hash` values are the leaves of a second independent MMR (`self._lineage_mmr`). `verify()` checks both MMR proofs. Primary passing while lineage fails (or vice versa) is a failed verification.
 
 **Writer signature**
 
@@ -114,15 +114,13 @@ Stored in `audit_records`. Prevents a writer from anchoring a record under anoth
 
 ### MMR (Merkle Mountain Range)
 
-An append-only binary tree held in `self._mmr` (an `MMR` instance). Leaves are record hashes; internal nodes are `SHA-256(left || right)`. The root is `bag_peaks` — a right-to-left fold over mountain peaks.
+Two append-only MMRs held in memory (`self._mmr` and `self._lineage_mmr`). Leaves are record hashes; internal nodes are `SHA-256(left || right)`. The root is `bag_peaks` — a right-to-left fold over mountain peaks.
 
-Every node (leaf and internal) is persisted to `mmr_nodes`. The MMR is restored from `mmr_nodes` at startup via `MMR.from_persisted()`, so verification works correctly across process restarts.
-
-`verify()` calls `self._mmr.get_proof(sequence)` which collects O(log n) sibling hashes by walking the in-memory node tree. `verify_proof()` then recomputes the root from that proof — if the result differs from the stored root, the record was tampered.
+`verify()` calls `mmr.get_proof(sequence)` which collects O(log n) sibling hashes by walking the in-memory node tree. `verify_proof()` then recomputes the root from that proof — if the result differs from the stored root, the record was tampered.
 
 ### Append-only invariant
 
-A SQLAlchemy `before_cursor_execute` event listener in `make_engine()` intercepts every SQL statement and raises `AppendOnlyViolationError` before any `UPDATE` or `DELETE` reaches SQLite. The DAO classes (`AuditRecordStore`, `LineageRecordStore`, `MMRNodeStore`, `MMRCheckpointStore`) expose no `update` or `delete` methods — their absence is a static-analysis guarantee.
+A SQLAlchemy `before_cursor_execute` event listener in `make_engine()` intercepts every SQL statement and raises `AppendOnlyViolationError` before any `UPDATE` or `DELETE` reaches SQLite. The store classes (`AuditRecordStore`, `LineageRecordStore`) expose no `update` or `delete` methods — their absence is a static-analysis guarantee.
 
 Tamper tests bypass this guard by connecting to the `.db` file directly via `sqlite3`, simulating a storage-layer attacker.
 
