@@ -86,3 +86,12 @@ def test_append_only_blocks_lineage_update():
             conn.execute(
                 sa.text("UPDATE lineage_records SET lineage_hash = 'aabbcc' WHERE sequence = 0")
             )
+
+
+def test_append_only_blocks_lineage_delete():
+    import sqlalchemy as sa
+    log = AuditLog()
+    log.anchor(_record())
+    with pytest.raises(AppendOnlyViolationError):
+        with log._engine.begin() as conn:
+            conn.execute(sa.text("DELETE FROM lineage_records WHERE sequence = 0"))
