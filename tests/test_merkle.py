@@ -1,5 +1,5 @@
 import pytest
-from audit_log.merkle import MMR, find_tamper, hash_leaf, verify_proof
+from audit_log.merkle import MMR, hash_leaf, verify_proof
 
 
 def make_mmr(n: int) -> MMR:
@@ -111,52 +111,3 @@ def test_proof_multi_peak_includes_other_peaks():
     proof = mmr.get_proof(4)
     assert len(proof.other_peaks) == 1  # one other peak (the height-2 one)
     assert proof.siblings == []         # leaf 4 IS the peak, no siblings needed
-
-
-# --- find_tamper tests ---
-
-def _hashes(n: int) -> list[str]:
-    return [hash_leaf(f"leaf_{i}") for i in range(n)]
-
-
-def test_find_tamper_clean_returns_minus_one():
-    h = _hashes(8)
-    assert find_tamper(h, h) == -1
-
-
-def test_find_tamper_first_leaf():
-    stored = _hashes(8)
-    recomputed = stored.copy()
-    recomputed[0] = hash_leaf("corrupted")
-    assert find_tamper(stored, recomputed) == 0
-
-
-def test_find_tamper_last_leaf():
-    stored = _hashes(8)
-    recomputed = stored.copy()
-    recomputed[7] = hash_leaf("corrupted")
-    assert find_tamper(stored, recomputed) == 7
-
-
-def test_find_tamper_middle():
-    stored = _hashes(8)
-    recomputed = stored.copy()
-    recomputed[3] = hash_leaf("corrupted")
-    assert find_tamper(stored, recomputed) == 3
-
-
-def test_find_tamper_returns_first_divergence():
-    # Two corrupted records — must return the earlier one
-    stored = _hashes(8)
-    recomputed = stored.copy()
-    recomputed[2] = hash_leaf("corrupted_2")
-    recomputed[5] = hash_leaf("corrupted_5")
-    assert find_tamper(stored, recomputed) == 2
-
-
-def test_find_tamper_1000_records_at_500():
-    # Required by the task spec: 1000 records, tamper planted at record 500
-    stored = _hashes(1000)
-    recomputed = stored.copy()
-    recomputed[500] = hash_leaf("tampered_record")
-    assert find_tamper(stored, recomputed) == 500

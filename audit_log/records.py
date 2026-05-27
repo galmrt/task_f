@@ -44,25 +44,6 @@ _lineage_records = sa.Table(
 # Append-only invariant: this module exposes no update() or delete() methods.
 # Absence of those methods is the static guarantee. grep "def update\|def delete" to verify.
 
-_mmr_nodes = sa.Table(
-    "mmr_nodes",
-    _metadata,
-    Column("node_idx", Integer, primary_key=True),
-    Column("hash", String(64), nullable=False),
-    Column("height", Integer, nullable=False),
-    Column("left_idx", Integer, nullable=True),
-    Column("right_idx", Integer, nullable=True),
-)
-
-_mmr_checkpoints = sa.Table(
-    "mmr_checkpoints",
-    _metadata,
-    Column("sequence", Integer, primary_key=True),
-    Column("root_hash", String(64), nullable=False),
-    Column("peaks_json", Text, nullable=False),
-)
-
-
 # ---------------------------------------------------------------------------
 # Engine factory
 # ---------------------------------------------------------------------------
@@ -209,75 +190,6 @@ class LineageRecordStore:
             return conn.execute(
                 sa.select(sa.func.count()).select_from(_lineage_records)
             ).scalar() or 0
-
-
-# ---------------------------------------------------------------------------
-# MMRNodeStore — persisted MMR nodes (leaves + internal)
-# ---------------------------------------------------------------------------
-
-class MMRNodeStore:
-    def __init__(self, engine: Engine) -> None:
-        self._engine = engine
-
-    def insert_batch(self, nodes: list[dict]) -> None:
-        """Insert a batch of node dicts with keys: node_idx, hash, height, left_idx, right_idx."""
-        if not nodes:
-            return
-        with self._engine.begin() as conn:
-            conn.execute(_mmr_nodes.insert(), nodes)
-
-    def get_all(self) -> list[dict]:
-        with self._engine.connect() as conn:
-            rows = conn.execute(
-                sa.select(_mmr_nodes).order_by(_mmr_nodes.c.node_idx)
-            ).fetchall()
-        return [
-            {
-                "node_idx": r.node_idx,
-                "hash": r.hash,
-                "height": r.height,
-                "left_idx": r.left_idx,
-                "right_idx": r.right_idx,
-            }
-            for r in rows
-        ]
-
-    def count(self) -> int:
-        with self._engine.connect() as conn:
-            return conn.execute(
-                sa.select(sa.func.count()).select_from(_mmr_nodes)
-            ).scalar() or 0
-
-
-# ---------------------------------------------------------------------------
-# MMRCheckpointStore — root snapshots after each anchor
-# ---------------------------------------------------------------------------
-
-class MMRCheckpointStore:
-    def __init__(self, engine: Engine) -> None:
-        self._engine = engine
-
-    def insert(self, sequence: int, root_hash: str, peaks: list[int]) -> None:
-        with self._engine.begin() as conn:
-            conn.execute(
-                _mmr_checkpoints.insert().values(
-                    sequence=sequence,
-                    root_hash=root_hash,
-                    peaks_json=json.dumps(peaks),
-                )
-            )
-
-    def get_latest(self) -> tuple[int, str, list[int]] | None:
-        """Returns (sequence, root_hash, peaks) or None."""
-        with self._engine.connect() as conn:
-            row = conn.execute(
-                sa.select(_mmr_checkpoints)
-                .order_by(_mmr_checkpoints.c.sequence.desc())
-                .limit(1)
-            ).fetchone()
-        if row is None:
-            return None
-        return row.sequence, row.root_hash, json.loads(row.peaks_json)
 
 
 # ---------------------------------------------------------------------------

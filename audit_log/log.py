@@ -17,8 +17,6 @@ from audit_log.records import (
     GENESIS_HASH,
     AuditRecordStore,
     LineageRecordStore,
-    MMRCheckpointStore,
-    MMRNodeStore,
     make_engine,
 )
 
@@ -43,18 +41,8 @@ class AuditLog:
         self._engine = make_engine(db_url)
         self._audit = AuditRecordStore(self._engine)
         self._lineage = LineageRecordStore(self._engine)
-        self._mmr_nodes = MMRNodeStore(self._engine)
-        self._mmr_checkpoints = MMRCheckpointStore(self._engine)
-        self._mmr = self._restore_mmr()
-
-    def _restore_mmr(self) -> MMR:
-        """Reconstruct the in-memory MMR from persisted nodes and the latest checkpoint."""
-        checkpoint = self._mmr_checkpoints.get_latest()
-        if checkpoint is None:
-            return MMR()
-        _, _, peaks = checkpoint
-        node_rows = self._mmr_nodes.get_all()
-        return MMR.from_persisted(node_rows, peaks)
+        records = self._audit.get_all_ordered()
+        self._mmr = MMR.build([_record_hash(r) for r in records]) if records else MMR()
 
     # ------------------------------------------------------------------
     # anchor
@@ -65,6 +53,7 @@ class AuditLog:
         payload_hash = hashlib.sha256(payload_str.encode()).hexdigest()
 
         record_id = uuid4()
+
 
         latest = self._audit.get_latest()
         if latest is None:
@@ -106,29 +95,8 @@ class AuditLog:
             parent_lineage_hash=parent_lineage_hash,
         )
 
-        # Persist MMR nodes created by this append
         leaf_hash = _record_hash(stored)
-        first_new_idx = self._mmr.append(leaf_hash)
-
-        new_nodes = [
-            {
-                "node_idx": i,
-                "hash": self._mmr.nodes[i].hash,
-                "height": self._mmr.nodes[i].height,
-                "left_idx": self._mmr.nodes[i].left,
-                "right_idx": self._mmr.nodes[i].right,
-            }
-            for i in range(first_new_idx, len(self._mmr.nodes))
-        ]
-        self._mmr_nodes.insert_batch(new_nodes)
-
-        # Persist checkpoint: root + current peak indices
-        root = self._mmr.get_root()
-        self._mmr_checkpoints.insert(
-            sequence=sequence,
-            root_hash=root,
-            peaks=list(self._mmr.peaks),
-        )
+        self._mmr.append(leaf_hash)
 
         return AnchorReceipt(
             record_id=stored.record_id,

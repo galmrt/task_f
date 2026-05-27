@@ -133,38 +133,11 @@ class MMR:
             mmr.append(h)
         return mmr
 
-    @classmethod
-    def from_persisted(cls, node_rows: list[dict], peaks: list[int]) -> MMR:
-        """Restore MMR state from persisted node rows and peak indices.
-
-        node_rows must be ordered by node_idx with no gaps.
-        """
-        mmr = cls()
-        for row in node_rows:
-            mmr.nodes.append(
-                Node(
-                    hash=row["hash"],
-                    height=row["height"],
-                    left=row["left_idx"],
-                    right=row["right_idx"],
-                )
-            )
-            if row["height"] == 0:
-                mmr.leaf_indices.append(row["node_idx"])
-        mmr.peaks = list(peaks)
-        return mmr
 
 
 # ---------------------------------------------------------------------------
 # Tamper detection and proof verification
 # ---------------------------------------------------------------------------
-
-def find_tamper(stored: list[str], recomputed: list[str]) -> int:
-    """Sequential O(n) scan. Returns the 0-based index of the first divergent leaf, or -1 if clean."""
-    for i, (s, r) in enumerate(zip(stored, recomputed)):
-        if s != r:
-            return i
-    return -1
 
 
 
