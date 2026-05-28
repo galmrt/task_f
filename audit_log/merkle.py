@@ -133,14 +133,6 @@ class MMR:
             mmr.append(h)
         return mmr
 
-
-
-# ---------------------------------------------------------------------------
-# Tamper detection and proof verification
-# ---------------------------------------------------------------------------
-
-
-
 def verify_proof(leaf_hash: str, proof: Proof, expected_root: str) -> bool:
     """Recompute the MMR root from a leaf + its Merkle proof."""
     current = leaf_hash

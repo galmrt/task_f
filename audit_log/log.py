@@ -44,10 +44,6 @@ class AuditLog:
         self._mmr = MMR()
         self._lineage_mmr = MMR()
 
-    # ------------------------------------------------------------------
-    # anchor
-    # ------------------------------------------------------------------
-
     def anchor(self, record: AuditRecord) -> AnchorReceipt:
         payload_str = json.dumps(record.payload, sort_keys=True)
         payload_hash = hashlib.sha256(payload_str.encode()).hexdigest()
@@ -106,10 +102,6 @@ class AuditLog:
             timestamp=stored.timestamp,
         )
 
-    # ------------------------------------------------------------------
-    # verify
-    # ------------------------------------------------------------------
-
     def verify(self, record_id: UUID) -> VerificationResult:
         record = self._audit.get_by_id(record_id)
         if record is None:
@@ -122,7 +114,7 @@ class AuditLog:
         n = self._audit.count()
         stored_root = self._mmr.get_root()
 
-        # Primary chain: O(log n) Merkle proof
+        # Primary chain
         leaf_hash = _record_hash(record)
         proof = self._mmr.get_proof(record.sequence)
         if not verify_proof(leaf_hash, proof, stored_root):
@@ -133,7 +125,7 @@ class AuditLog:
                 failure_reason=f"Merkle proof failed for sequence {record.sequence}",
             )
 
-        # Secondary chain: O(log n) lineage MMR proof
+        # Secondary chain
         lineage = self._lineage.get_by_record_id(record_id)
         if lineage is None:
             return VerificationResult(
@@ -163,20 +155,12 @@ class AuditLog:
 
         return VerificationResult(valid=True, record_count=n, merkle_root=stored_root)
 
-    # ------------------------------------------------------------------
-    # rebuild_merkle_root
-    # ------------------------------------------------------------------
-
     def rebuild_merkle_root(self, time_window: tuple[datetime, datetime]) -> bytes:
         records = self._audit.get_by_time_window(time_window[0], time_window[1])
         if not records:
             raise ValueError("No records found in the given time window")
         mmr = MMR.build([_record_hash(r) for r in records])
         return bytes.fromhex(mmr.get_root())
-
-    # ------------------------------------------------------------------
-    # derived_lineage
-    # ------------------------------------------------------------------
 
     def derived_lineage(self, record_id: UUID) -> LineageReceipt:
         result = self._lineage.get_by_record_id(record_id)
