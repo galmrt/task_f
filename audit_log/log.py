@@ -22,7 +22,7 @@ from audit_log.records import (
 
 
 def _record_hash(r: StoredRecord) -> str:
-    """Canonical leaf hash for a stored record — used both in the MMR and as parent_hash."""
+    """Canonical hash over all StoredRecord fields. Used to build the primary chain: parent_hash = hash(previous record)."""
     data = (
         str(r.record_id)
         + str(r.sequence)
@@ -74,7 +74,6 @@ class AuditLog:
         )
         self._audit.insert(stored)
 
-        # Secondary lineage chain
         latest_lineage = self._lineage.get_latest()
         parent_lineage_hash = (
             latest_lineage.lineage_hash if latest_lineage else GENESIS_HASH
@@ -103,6 +102,7 @@ class AuditLog:
         )
 
     def verify(self, record_id: UUID) -> VerificationResult:
+        """Validates a record against both the primary Merkle chain and the secondary lineage chain. Both must reconcile."""
         record = self._audit.get_by_id(record_id)
         if record is None:
             return VerificationResult(
@@ -114,7 +114,6 @@ class AuditLog:
         n = self._audit.count()
         stored_root = self._mmr.get_root()
 
-        # Primary chain
         leaf_hash = _record_hash(record)
         proof = self._mmr.get_proof(record.sequence)
         if not verify_proof(leaf_hash, proof, stored_root):
@@ -125,7 +124,6 @@ class AuditLog:
                 failure_reason=f"Merkle proof failed for sequence {record.sequence}",
             )
 
-        # Secondary chain
         lineage = self._lineage.get_by_record_id(record_id)
         if lineage is None:
             return VerificationResult(

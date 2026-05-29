@@ -12,7 +12,6 @@ from sqlalchemy.engine import Engine
 from audit_log.exceptions import AppendOnlyViolationError
 from audit_log.models import DynamicEventType, LineageReceipt, StoredRecord
 
-# Every first record in a fresh log uses this as its parent_hash / parent_lineage_hash.
 GENESIS_HASH: str = hashlib.sha256(b"").hexdigest()
 
 _metadata = sa.MetaData()
@@ -41,15 +40,9 @@ _lineage_records = sa.Table(
     Column("parent_lineage_hash", String(64), nullable=False),
 )
 
-# Append-only invariant: this module exposes no update() or delete() methods.
-# Absence of those methods is the static guarantee. grep "def update\|def delete" to verify.
-
-# ---------------------------------------------------------------------------
-# Engine factory
-# ---------------------------------------------------------------------------
 
 def make_engine(url: str = "sqlite:///:memory:") -> Engine:
-    """Create a SQLAlchemy engine, attach the append-only guard, and create tables."""
+    """Creates an append-only SQLAlchemy engine: attaches the UPDATE/DELETE guard, then initialises the schema."""
     engine = sa.create_engine(url)
     _attach_append_only_guard(engine)
     _metadata.create_all(engine)
@@ -64,10 +57,6 @@ def _attach_append_only_guard(engine: Engine) -> None:
                 f"Append-only violation: mutation blocked — {statement[:80]!r}"
             )
 
-
-# ---------------------------------------------------------------------------
-# AuditRecordStore — primary chain
-# ---------------------------------------------------------------------------
 
 class AuditRecordStore:
     def __init__(self, engine: Engine) -> None:
@@ -126,10 +115,6 @@ class AuditRecordStore:
             ).scalar() or 0
 
 
-# ---------------------------------------------------------------------------
-# LineageRecordStore — secondary chain
-# ---------------------------------------------------------------------------
-
 class LineageRecordStore:
     def __init__(self, engine: Engine) -> None:
         self._engine = engine
@@ -177,10 +162,6 @@ class LineageRecordStore:
                 sa.select(sa.func.count()).select_from(_lineage_records)
             ).scalar() or 0
 
-
-# ---------------------------------------------------------------------------
-# Row → model helpers
-# ---------------------------------------------------------------------------
 
 def _row_to_stored(row: sa.engine.Row) -> StoredRecord:
     ts = row.timestamp

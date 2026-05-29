@@ -1,4 +1,3 @@
-"""Tamper-detection tests — primary chain, lineage chain, reconciliation."""
 from __future__ import annotations
 
 import hashlib
@@ -21,7 +20,6 @@ def _record(i: int = 0) -> AuditRecord:
 
 
 def _make_log_with_db() -> tuple[AuditLog, str]:
-    """Return (AuditLog, db_path) backed by a temp file so sqlite3 can mutate it."""
     fd, path = tempfile.mkstemp(suffix=".db")
     os.close(fd)
     log = AuditLog(db_url=f"sqlite:///{path}")
@@ -29,7 +27,6 @@ def _make_log_with_db() -> tuple[AuditLog, str]:
 
 
 def _tamper_primary(db_path: str, sequence: int, field: str, value: str) -> None:
-    """Directly mutate a primary audit_records field, bypassing the SQLAlchemy guard."""
     conn = sqlite3.connect(db_path)
     conn.execute(
         f"UPDATE audit_records SET {field} = ? WHERE sequence = ?",  # noqa: S608
@@ -49,18 +46,11 @@ def _tamper_lineage(db_path: str, sequence: int, field: str, value: str) -> None
     conn.close()
 
 
-# -----------------------------------------------------------------------
-# Primary chain tamper tests
-# -----------------------------------------------------------------------
-
 def test_tamper_at_record_500():
-    """Write 1000 records, plant a mutation at sequence 500, verify must detect it."""
     log, db_path = _make_log_with_db()
     receipts = [log.anchor(_record(i)) for i in range(1000)]
 
     _tamper_primary(db_path, 500, "payload_hash", "a" * 64)
-
-    # Force fresh connections so the engine doesn't see a stale cache
     log._engine.dispose()
 
     result = log.verify(receipts[500].record_id)
@@ -116,7 +106,6 @@ def test_no_tamper_returns_valid():
 
 
 def test_verify_unknown_record_id_returns_invalid():
-    """Empty log — verifying a non-existent record_id returns invalid."""
     from uuid import uuid4
     log = AuditLog()
     result = log.verify(uuid4())
@@ -146,12 +135,7 @@ def test_single_record_tampered():
     assert result.tampered_at_sequence == 0
 
 
-# -----------------------------------------------------------------------
-# Lineage chain tamper tests
-# -----------------------------------------------------------------------
-
 def test_lineage_tamper_detected_when_primary_intact():
-    """Primary chain is clean; only lineage is tampered — verify must still fail."""
     log, db_path = _make_log_with_db()
     receipts = [log.anchor(_record(i)) for i in range(20)]
 
@@ -173,10 +157,6 @@ def test_lineage_parent_hash_tamper_detected():
     result = log.verify(receipts[5].record_id)
     assert not result.valid
 
-
-# -----------------------------------------------------------------------
-# Reconciliation: primary OK but lineage disagrees (or vice versa)
-# -----------------------------------------------------------------------
 
 def test_reconciliation_failure_primary_ok_lineage_bad():
     log, db_path = _make_log_with_db()

@@ -4,10 +4,6 @@ import hashlib
 from dataclasses import dataclass
 
 
-# ---------------------------------------------------------------------------
-# Hash helpers
-# ---------------------------------------------------------------------------
-
 def hash_leaf(data: str) -> str:
     return hashlib.sha256(data.encode()).hexdigest()
 
@@ -17,16 +13,12 @@ def hash_nodes(left: str, right: str) -> str:
 
 
 def bag_peaks(peaks: list[str]) -> str:
-    """Fold peaks right-to-left: hash(peaks[-2] || hash(peaks[-1]))."""
+    """Folds peaks right-to-left: hash(peak[-2] || hash(peak[-1])). Order is fixed — any change invalidates historical roots."""
     result = peaks[-1]
     for peak in reversed(peaks[:-1]):
         result = hashlib.sha256((peak + result).encode()).hexdigest()
     return result
 
-
-# ---------------------------------------------------------------------------
-# MMR
-# ---------------------------------------------------------------------------
 
 @dataclass
 class Node:
@@ -51,10 +43,7 @@ class MMR:
         self.leaf_indices: list[int] = []
 
     def append(self, leaf_hash: str) -> int:
-        """Append a leaf. Returns the index of the first new node (pre-append node count).
-
-        Every node at index >= the returned value is new and should be persisted.
-        """
+        """Inserts a leaf and merges equal-height peaks upward. Returns the leaf node index (first new node added), not the final merged parent."""
         first_new = len(self.nodes)
         current_idx = first_new
         self.nodes.append(Node(hash=leaf_hash, height=0))
@@ -133,8 +122,9 @@ class MMR:
             mmr.append(h)
         return mmr
 
+
 def verify_proof(leaf_hash: str, proof: Proof, expected_root: str) -> bool:
-    """Recompute the MMR root from a leaf + its Merkle proof."""
+    """Walks the sibling path from leaf to mountain peak, reconstructs the root via bag_peaks, and compares against expected_root."""
     current = leaf_hash
     for sibling_hash, side in proof.siblings:
         if side == "right":

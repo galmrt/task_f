@@ -26,14 +26,12 @@ def test_single_leaf_root_equals_leaf_hash():
 
 
 def test_four_leaves_single_peak():
-
     mmr = make_mmr(4)
     assert len(mmr.nodes) == 7
     assert len(mmr.peaks) == 1
 
 
 def test_three_leaves_two_peaks():
-    # 3 leaves → 2 peaks (heights 1 and 0)
     mmr = make_mmr(3)
     assert len(mmr.peaks) == 2
 
@@ -67,10 +65,8 @@ def test_build_empty_raises():
 def test_append_returns_node_index():
     mmr = MMR()
     idx = mmr.append(hash_leaf("leaf_0"))
-    assert idx == 0  # first new node is the leaf at index 0
+    assert idx == 0
     idx = mmr.append(hash_leaf("leaf_1"))
-    # leaf lands at index 1; merged parent at index 2.
-    # append() returns first_new (leaf index = 1).
     assert idx == 1
 
 
@@ -98,16 +94,14 @@ def test_proof_out_of_range_raises():
 
 
 def test_proof_single_peak_has_no_other_peaks():
-    # 4 leaves → 1 peak → other_peaks should be empty
     mmr = make_mmr(4)
     proof = mmr.get_proof(0)
     assert proof.other_peaks == []
-    assert len(proof.siblings) == 2  # height-2 tree: 2 levels of siblings
+    assert len(proof.siblings) == 2
 
 
 def test_proof_multi_peak_includes_other_peaks():
-    # 5 leaves → 2 peaks; leaf 4 is in the second (height-0) peak alone
     mmr = make_mmr(5)
     proof = mmr.get_proof(4)
-    assert len(proof.other_peaks) == 1  # one other peak (the height-2 one)
-    assert proof.siblings == []         # leaf 4 IS the peak, no siblings needed
+    assert len(proof.other_peaks) == 1
+    assert proof.siblings == []

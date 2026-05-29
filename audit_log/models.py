@@ -20,16 +20,12 @@ DynamicEventType = Enum(
 )
 
 class AuditRecord(BaseModel):
-    """Caller-supplied input. Only what the caller knows — no computed fields."""
-
     event_type: DynamicEventType
     payload: dict[str, Any]
     originating_component_id: str
 
 
 class StoredRecord(AuditRecord):
-    """Full persisted form. Extends AuditRecord with computed fields. Immutable after creation."""
-
     model_config = {"frozen": True}
 
     record_id: UUID = Field(default_factory=uuid4)
@@ -41,8 +37,6 @@ class StoredRecord(AuditRecord):
 
 
 class AnchorReceipt(BaseModel):
-    """Returned to the caller after a successful anchor()."""
-
     record_id: UUID
     sequence: int
     payload_hash: str
@@ -52,8 +46,6 @@ class AnchorReceipt(BaseModel):
 
 
 class VerificationResult(BaseModel):
-    """Returned by verify(). Covers both hash chains and Merkle root."""
-
     valid: bool
     record_count: int
     merkle_root: str | None = None
@@ -62,8 +54,6 @@ class VerificationResult(BaseModel):
 
 
 class LineageReceipt(BaseModel):
-    """One node in the secondary lineage chain, returned by derived_lineage()."""
-
     record_id: UUID
     sequence: int
     payload_hash: str

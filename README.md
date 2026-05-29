@@ -12,7 +12,7 @@ pip install -e "task_f/[dev]"
 ## Running Tests
 
 ```bash
-pytest task_f/tests/                                        # all 52 tests
+pytest task_f/tests/                                        # all 53 tests
 pytest task_f/tests/test_tamper_detection.py               # tamper suite only
 pytest task_f/tests/test_tamper_detection.py::test_tamper_at_record_500
 mypy task_f/audit_log/                                      # type check

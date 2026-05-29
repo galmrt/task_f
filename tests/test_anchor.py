@@ -1,4 +1,3 @@
-"""Tests for AuditLog.anchor()."""
 from __future__ import annotations
 
 import hashlib
@@ -50,10 +49,8 @@ def test_anchor_second_record_chains_parent_hash():
     log = AuditLog()
     r0 = log.anchor(_record())
     r1 = log.anchor(_record())
-    # r1.parent_hash must be the record-hash of r0, not its payload_hash
     assert r1.parent_hash != r0.parent_hash
     assert r1.parent_hash != GENESIS_HASH
-    # It must NOT be the raw payload_hash of r0
     assert r1.parent_hash != r0.payload_hash
 
 

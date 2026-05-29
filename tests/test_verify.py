@@ -1,4 +1,3 @@
-"""Tests for AuditLog.verify()."""
 from __future__ import annotations
 
 import pytest
@@ -38,7 +37,7 @@ def test_verify_returns_merkle_root_on_success():
     r = log.anchor(_record())
     result = log.verify(r.record_id)
     assert result.merkle_root is not None
-    assert len(result.merkle_root) == 64  # hex-encoded SHA-256
+    assert len(result.merkle_root) == 64
 
 
 def test_verify_nonexistent_record_id_returns_invalid():
